@@ -1,0 +1,399 @@
+//alle code van iedereen gebundeld
+
+/*
+NOTICE: this script is used to display ALL visuals on projection
+the right pane is used for the frontal wall, the left pane for all the others
+follow link below for more info on content of subgames 
+http://nmd-at1617.tumblr.com/post/155783421404/rhytkos-final-games-overview
+*/
+//GUIDE: use a,z,e and r keys to simulate triggers in overall game changes
+import netP5.*;
+import oscP5.*;
+import codeanticode.syphon.*;
+
+OscP5 oscP5;
+NetAddress myRemoteLocation;
+SyphonServer server;
+
+PImage Key;
+PGraphics vooruitgangLeft;
+PGraphics vooruitgangRight;
+PGraphics HSBLeft;
+PGraphics HSBRight;
+PGraphics colorWord;
+PGraphics keyPane;
+PGraphics canvas;
+
+int HSBStartCounter = 480;
+int colorWordStartCounter = 240;
+int keyStartCounter = 240;
+
+float HSBAlpha = 0;
+float colorWordAlpha = 0;
+float keyAlpha = 0;
+float endAlpha = 0;
+
+boolean[] allInputs = new boolean[4];
+boolean StartOut = false;
+boolean HSBOut = false;
+boolean ColorWordOut = false;
+boolean KeyOut =false;
+
+Attractor [] attractors = new Attractor[1];
+Mover [] moversLEFT = new Mover[800];
+Mover [] moversRIGHT = new Mover[800];
+int lineCountLeft = 0;
+int lineCountRight = 0;
+int lineMax = 2000;
+float maxSpeed = 1;
+int percDone = 100;
+int mapFactor = 320;
+
+int hsbH = (int) random(0, 255);
+int hsbS  = (int) random(40, 255);
+int hsbB = (int) random(80, 230);
+int leaphsbH = 0;
+int leaphsbS = 0;
+int leaphsbB = 220;
+int oculushsbH = 0;
+int oculushsbS = 0;
+int oculushsbB = 150;
+int HSBbleed = 26;
+
+color colorWordHEX = #E5E5E5;
+
+void settings() {
+  size(1200, 800, P3D);
+  PJOGL.profile = 1;
+}
+
+void setup() {
+  oscP5 = new OscP5(this, 3334);
+  myRemoteLocation = new NetAddress("127.0.0.1", 3333);
+
+  vooruitgangLeft = createGraphics(600, 800, P3D);
+  vooruitgangRight = createGraphics(600, 800, P3D);
+  HSBLeft = createGraphics(600, 800, P3D);
+  HSBRight = createGraphics(600, 800, P3D);
+  colorWord = createGraphics(600, 800, P3D);
+  keyPane = createGraphics(600, 800, P3D);
+  canvas = createGraphics(1200, 800, P3D);
+  server = new SyphonServer(this, "Processing Syphon");
+
+  pixelDensity(2);
+  Key = loadImage("key.png");
+
+  for (int i = 0; i < moversLEFT.length; i++) {
+    moversLEFT[i] = new Mover(random(0.1, 2), random(width), random(height));
+  }
+  for (int i = 0; i < moversRIGHT.length; i++) {
+    moversRIGHT[i] = new Mover(random(0.1, 2), random(width), random(height));
+  }
+  attractors[0] = new Attractor(width/2, height/2, 0);
+  for (int i = 0; i < allInputs.length; i++) {
+    allInputs[i] = false;
+  }
+}
+
+void draw() {
+  canvas.beginDraw();
+
+  //start of game
+  vooruitgangLeft.beginDraw();
+  vooruitgangLeftDraw(vooruitgangLeft);
+  vooruitgangLeft.endDraw();
+  canvas.image(vooruitgangLeft, 0, 0);
+
+  vooruitgangRight.beginDraw();
+  vooruitgangRightDraw();
+  vooruitgangRight.endDraw();
+  canvas.image(vooruitgangRight, width/2, 0);
+
+  //hsb game
+  if (StartOut) {
+    if (!HSBOut) {
+      if (HSBStartCounter > 0) {
+        HSBStartCounter--;
+      }
+      if (HSBStartCounter == 0) {
+        if (HSBAlpha < 80) {
+          HSBAlpha++ ;
+        }
+        HSBLeft.beginDraw();
+        HSBDraw(HSBLeft);
+        HSBLeft.endDraw();
+        HSBRight.beginDraw();
+        HSBDraw(HSBRight);
+        HSBRight.endDraw();
+        canvas.tint(255, (int) HSBAlpha/1.5);
+        canvas.image(HSBLeft, 0, 0);
+        canvas.image(HSBRight, width/2, 0);
+      }
+    }
+  }
+  
+  //colorword game
+  if (HSBOut) {
+    if (!ColorWordOut) {
+      if (colorWordStartCounter > 0) {
+        colorWordStartCounter--;
+      }
+      if (colorWordStartCounter == 0) {
+        if (colorWordAlpha < 80) {
+          colorWordAlpha++ ;
+        }
+        colorWord.beginDraw();
+        colorWord.colorMode(RGB);
+        colorWord.background(colorWordHEX);
+        colorWord.endDraw();
+        canvas.tint(255, colorWordAlpha);
+        canvas.image(colorWord, width/2, 0);
+      }
+    }
+  }
+  
+  //final unlock visual
+  if (ColorWordOut) {
+    if (!KeyOut) {
+      if (keyStartCounter > 0) {
+        keyStartCounter--;
+      }
+      if (keyStartCounter == 0) {
+        if (keyAlpha < 80) {
+          keyAlpha++ ;
+        }
+        /*WARNING, here should come an implementation of the code of leapKeySyphon by Margo Cousin*/
+        /*For now, due to time based problems, the "vooruitgangLeft" visual is re-used for this instead*/
+        keyPane.beginDraw();
+        vooruitgangLeftDraw(keyPane);
+        keyPane.endDraw();
+        canvas.tint(255, keyAlpha);
+        canvas.image(keyPane, width/2, 0);
+      }
+    }
+  }
+
+  canvas.endDraw();
+  image(canvas, 0, 0);
+  server.sendImage(canvas);
+}
+
+void vooruitgangLeftDraw(PGraphics vooruitgangLeftie) {
+  vooruitgangLeftie.noStroke();
+  vooruitgangLeftie.background(0);
+  vooruitgangLeftie.colorMode(HSB);
+  lineCountLeft = 0;
+
+  for (int i = 0; i < moversLEFT.length; i++) {
+    Mover currentMover = moversLEFT[i];
+    PVector m1 = currentMover.location;
+
+    currentMover.update();
+    currentMover.checkEdges();
+    currentMover.display(vooruitgangLeftie);
+
+    for (int midx = i; midx >= 0; midx--) {
+      Mover mbis = moversLEFT[midx];
+      PVector m2 = mbis.location;
+      float d = m1. dist(m2);
+      if (d<20 && lineCountLeft< lineMax) {
+        vooruitgangLeftie.stroke(currentMover.colourH, currentMover.colourS, currentMover.colourB);
+        vooruitgangLeftie.strokeWeight(0.4);
+        vooruitgangLeftie.line(m1.x, m1.y, m2.x, m2.y);
+        lineCountLeft++;
+      }
+    }
+  }
+}
+
+void vooruitgangRightDraw() {
+  vooruitgangRight.noStroke();
+  vooruitgangRight.background(0);
+  vooruitgangRight.colorMode(HSB);
+  vooruitgangRight.translate(-width/4, 0);
+  lineCountRight = 0;
+
+  for (int i = 0; i < moversRIGHT.length; i++) {
+    Mover currentMover = moversRIGHT[i];
+    PVector m1 = currentMover.location;
+
+    for ( int j = 0; j < attractors.length; j++) {
+      int mapFactor = (int) map(percDone, 100, 0, 320, 140);
+      float massValue;
+      if (percDone == 100 || percDone == 0) {
+        massValue = 0;
+      } else {
+        massValue = map(dist(moversRIGHT[i].location.x, moversRIGHT[i].location.y, width/2, height/2), percDone-(mapFactor/2), percDone+mapFactor, -(mapFactor/2), (mapFactor/2));
+      }
+      attractors[0].mass = massValue;
+      PVector force = attractors[j].attract(moversRIGHT[i]);
+      currentMover.applyForce(force);
+    }
+
+    currentMover.update();
+    currentMover.checkEdges();
+    currentMover.display(vooruitgangRight);
+
+    for (int midx = i; midx >= 0; midx--) {
+      Mover mbis = moversRIGHT[midx];
+      PVector m2 = mbis.location;
+      float d = m1. dist(m2);
+      if (d<20 && lineCountRight < lineMax) {
+        vooruitgangRight.stroke(currentMover.colourH, currentMover.colourS, currentMover.colourB);
+        vooruitgangRight.strokeWeight(0.4);
+        vooruitgangRight.line(m1.x, m1.y, m2.x, m2.y);
+        lineCountRight++;
+      }
+    }
+  }
+
+  changePercDone();
+  if (percDone == 0) { 
+    vooruitgangRight.fill(0, 0, 0, endAlpha/2);
+    vooruitgangRight.rect(0, 0, width, height);
+    if (endAlpha < 255) {
+      endAlpha++;
+    }
+    vooruitgangRight.tint(255, endAlpha);
+    vooruitgangRight.pushMatrix();
+    vooruitgangRight.imageMode(CENTER);
+    vooruitgangRight.image(Key, width/2, height/2, Key.width/1.5, Key.height/1.5);
+    vooruitgangRight.popMatrix();
+    lineMax = lineMax-3;
+  }
+}
+
+void HSBDraw(PGraphics HSBlr) {
+  HSBlr.colorMode(HSB);
+  if (HSBlr == HSBLeft) {
+    HSBlr.background(hsbH, hsbS, hsbB);
+  }
+  if (HSBlr == HSBRight) {
+    HSBlr.translate(-width/4, 0);
+    HSBlr.fill(oculushsbH, oculushsbS, oculushsbB);
+    HSBlr.rect(0, 0, width/2, height);
+    HSBlr.fill(leaphsbH, leaphsbS, leaphsbB);
+    HSBlr.rect(width/2, 0, width/2, height);
+    if (abs(leaphsbH - hsbH) < HSBbleed && abs(leaphsbS - hsbS) < HSBbleed && abs(leaphsbB - hsbB) < HSBbleed) {
+      if (abs(hsbH - oculushsbH) < HSBbleed && abs(hsbS - oculushsbS) < HSBbleed && abs(hsbB - oculushsbB) < HSBbleed) {
+        HSBOut = true;
+      }
+    }
+  }
+}
+
+void changePercDone() {
+  if (StartOut == true) {
+    allInputs[0] = true;
+  }
+  if (HSBOut == true) {
+    allInputs[1] = true;
+  }
+  if (ColorWordOut == true) {
+    allInputs[2] = true;
+  }
+  if (KeyOut == true) {
+    allInputs[3] = true;
+  }
+  int numOfTrue = 0;
+  for (int i = 0; i < allInputs.length; i++) {
+    if (allInputs[i] == true) {
+      numOfTrue++;
+    }
+  }
+  int newPercDone = (int) map(numOfTrue, 0, allInputs.length, 100, 0);
+  percDone = newPercDone;
+}
+
+//simulate game triggers
+void keyReleased() {
+  if (key == 'a') {
+    StartOut = true;
+  }
+  if (key == 'z') {
+    HSBOut = true;
+  }
+  if (key == 'e') {
+    ColorWordOut = true;
+  }
+  if (key == 'r') {
+    KeyOut = true;
+  }
+}
+
+//listen to Leap Motion, Oculus Rift and conuctive buttons through OSC
+void oscEvent(OscMessage theOscMessage) {
+  println("osc message");
+  println(frameRate);
+  if (theOscMessage.addrPattern().equals("/gameState")) {
+    String message = (String) theOscMessage.get(0).stringValue();
+    message = message.replace("[", "");
+    message = message.replace("]", "");
+    if (message.equals("1")) {
+      StartOut = true;
+    }
+    if (message.equals("3")) {
+      HSBOut = true;
+    }
+    if (message.equals("5")) {
+      ColorWordOut = true;
+    }
+    if (message.equals("7")) {
+      KeyOut = true;
+    }
+  }
+  if (theOscMessage.addrPattern().equals("/leap/xyz")) {
+    String message = (String) theOscMessage.get(0).stringValue();
+    message = message.replace("[", "");
+    message = message.replace("]", "");
+    String[] list = split(message, ':');
+
+    int x = Integer.parseInt(list[1]);
+    int y = Integer.parseInt(list[2]);
+    int z = Integer.parseInt(list[3]);
+
+    leaphsbH = (int) map(floor(x*100), 0, 100, 10, 240);
+    leaphsbS = (int) map(floor(y*100), 50, 450, 0, 255);
+    leaphsbB = (int) map(floor(z*100), -80, 80, 0, 255);
+  }
+  if (theOscMessage.addrPattern().equals("/oculus/xyz")) {
+    String message = (String) theOscMessage.get(0).stringValue();
+    message = message.replace("[", "");
+    message = message.replace("]", "");
+    String[] list = split(message, ':');
+
+    int x = Integer.parseInt(list[1]);
+    int y = Integer.parseInt(list[2]);
+    int z = Integer.parseInt(list[3]);
+
+    oculushsbH = (int) map(floor(x*100), 0, 100, 10, 240);
+    oculushsbS = (int) map(floor(y*100), 50, 450, 0, 255);
+    oculushsbB = (int) map(floor(z*100), -80, 80, 0, 255);
+  }
+  if (theOscMessage.addrPattern().equals("/MakeyMakeyKleuren/WelkeKleur")) {
+    String message = (String) theOscMessage.get(0).stringValue();
+    switch(message) {
+    case "[\"ROOD\"]": 
+      colorWordHEX = #CF0914;
+      break;
+    case "[\"GROEN\"]": 
+      colorWordHEX = #7DF442;
+      break;
+    case "[\"BLAUW\"]": 
+      colorWordHEX = #1237E2;
+      break;
+    case "[\"ROOS\"]": 
+      colorWordHEX = #FF00A6;
+      break;
+    case "[\"GEEL\"]": 
+      colorWordHEX = #FFFA00;
+      break;
+    case "[\"TURQOUISE\"]": 
+      colorWordHEX = #0DBAAE;
+      break;
+    default:
+      colorWordHEX = #E5E5E5;
+      break;
+    }
+  }
+}

@@ -1,0 +1,43 @@
+//Johannes
+
+class Words {
+  //variables
+  String[] list;
+  PVector acc = PVector.random2D();
+  String receivedText;
+  float angle = 0;
+  float offset = 80;
+  PVector[] pos = new PVector[6];
+  float[] startingV = new float[pos.length];
+  float[] m = new float[startingV.length];
+  //hardcoded list of colours we use, these match the ones on the buttons
+  color[] colors = {color(207, 9, 20), color(125, 244, 66), color(18, 52, 226), color(255, 0, 199), color(255, 250, 0), color(13, 186, 174)};
+
+  //method
+  Words(String text) {
+    receivedText = text;
+    //Splitting the text and make an array of the words
+    list = split(receivedString, " ");
+    //giving every word a unique and random position and starting value, so they all bounce asynchronously
+    for (int i = 0; i < list.length; i++) {
+      pos[i] = new PVector(random(width-offset), random(height/2 - offset*2, height/2 + offset));
+      startingV[i] = random(5, 10);
+    }
+  }
+
+  //Update function the make the words move
+  void update() {
+    for (int i = 0; i<list.length; i++) {
+      m[i] = (sin(angle + startingV[i]) * offset/2) + offset/2;
+    }
+    angle += 0.02;
+  }
+  //Funtion to show the actual word    
+  void show() {
+    for (int i = 0; i < list.length; i++) {
+      fill(colors[i]);
+      textSize(24);
+      text(list[i], pos[i].x, pos[i].y+m[i]);
+    }
+  }
+}

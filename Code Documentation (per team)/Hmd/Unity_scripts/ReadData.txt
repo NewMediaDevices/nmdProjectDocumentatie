@@ -1,0 +1,26 @@
+﻿//Mathias
+
+using UnityEngine;
+using System.Collections;
+
+using System;
+using System.Collections.Generic;
+using System.Net;
+using System.Text;
+
+public class ReadData : MonoBehaviour {
+
+	Quaternion draaiing;
+	// Use this for initialization
+	void Start () {
+		
+		
+	}
+	
+	// Update is called once per frame
+	void Update () {
+		draaiing = Camera.main.gameObject.transform.rotation;
+		Type type = draaiing.x.GetType();
+		//Debug.Log (type);
+	}
+}

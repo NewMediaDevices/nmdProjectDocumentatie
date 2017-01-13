@@ -1,0 +1,45 @@
+﻿//Mathias
+
+using UnityEngine;
+
+using System.Collections;
+
+
+
+public class ChangeOculusColor : MonoBehaviour {
+
+	
+
+	Quaternion draaiing;
+
+	
+	
+	void Start () {
+
+	
+		
+	}
+
+	
+	
+	float getHSB(float HSBValue){
+		
+		var result = Mathf.Lerp (0.0f,1.0f, Mathf.InverseLerp (0-1f, 1f,  HSBValue));
+
+		return result;
+	
+	}
+
+	
+
+	void Update () {
+		
+		draaiing = Camera.main.gameObject.transform.rotation;
+
+		Debug.Log (draaiing);
+		
+		gameObject.GetComponent<Renderer>().material.color = Color.HSVToRGB (getHSB(draaiing.x),getHSB(draaiing.y),getHSB(draaiing.z));
+
+	}
+
+}

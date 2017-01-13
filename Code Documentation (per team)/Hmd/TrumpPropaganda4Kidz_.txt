@@ -1,0 +1,127 @@
+//Johannes
+
+//Librariers
+import controlP5.*;
+import netP5.*;
+import oscP5.*;
+
+//variables
+OscP5 oscP5;
+NetAddress myRemoteLocation;
+OscMessage myMessage;
+
+String receivedString;
+String endResult = "";
+Words words;
+
+void setup() {
+  size(600, 600);
+  //Retina display optimization
+  //pixelDensity(2);
+  //adress to send and read from
+  oscP5 = new OscP5(this, 3334);
+  myRemoteLocation = new NetAddress("127.0.0.1", 3333);
+  //make a call to API to get a string right from the start
+  getCurrentMessage();
+}
+
+void draw() {
+  background(121);
+  //Checking if we got an actual string to work with from the API
+  if (words != null) {
+    words.update();
+    words.show();
+  }
+  
+  //Checking if the string that was made with the buttons matches the original string
+  if (wordCount(endResult) > 6) {
+    if (!endResult.equals(receivedString + " ")) {
+      fill(255, 0, 0);
+      text(endResult, 30, 500);
+      endResult = "";
+    } else {
+      fill(0, 255, 0);
+      text(endResult, 30, 500);
+      getNewMessage();
+    }
+  }
+  else{
+    fill(255);
+    text(endResult, 30, 500);
+  }
+}
+
+void keyPressed() {
+  //The 'p' key is a hard reset, by clearing the result string and getting a new message
+  if (key == 'p') {
+    getNewMessage();
+    endResult = "";
+  }
+  //List of all the keys connected to the buttons, they all do pretty much the same
+  for (int i = 0; i<words.list.length; i++) {
+    if (key == 'z') {
+      //println("red");
+      if (hex(words.colors[i], 6).equals("CF0914")) {
+        endResult += words.list[i] + " ";
+      }
+    }
+    if (key == 's') {
+      //println("green");
+      if (hex(words.colors[i], 6).equals("7DF442")) {
+        endResult += words.list[i] + " ";
+      }
+    }
+    if (key == 'q') {
+      //println("blue");
+      if (hex(words.colors[i], 6).equals("1234E2")) {
+        endResult += words.list[i] + " ";
+      }
+    }
+    if (key == 'd') {
+      //println("pink");
+      if (hex(words.colors[i], 6).equals("FF00C7")) {
+        endResult += words.list[i] + " ";
+      }
+    }
+    if (key == 'g') {
+      //println("geel");
+      if (hex(words.colors[i], 6).equals("FFFA00")) {
+        endResult += words.list[i] + " ";
+      }
+    }
+    if (keyCode == UP) {
+      //println("cyan");
+      if (hex(words.colors[i], 6).equals("0DBAAE")) {
+        endResult += words.list[i] + " ";
+      }
+    }
+  }
+}
+
+//Function to check how many words are in a sentence (needed for the first check to see if the strings match)
+int wordCount(String s){
+  int wordCount = 0;
+  String[] wordList;
+  wordList = split(s, " ");
+  wordCount = wordList.length;
+  return wordCount;
+}
+
+//Function to get the the current displayed message from the API (only used in the setup() of the program)
+void getCurrentMessage() {
+  myMessage = new OscMessage("/getCurrentSentence");
+  oscP5.send(myMessage, myRemoteLocation);
+}
+//Read the method name, it's quite clear
+void getNewMessage() {
+  myMessage = new OscMessage("/getNewSentence");
+  oscP5.send(myMessage, myRemoteLocation);
+}
+
+//This function triggers every time an API call is made, it gets the string to work with and instantiates a new Word
+void oscEvent(OscMessage theOscMessage) {
+  print("### received an osc message: ");
+  receivedString = theOscMessage.get(0).toString();
+  words = new Words(receivedString);
+  println(receivedString);
+}

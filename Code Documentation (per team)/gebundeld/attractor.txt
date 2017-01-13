@@ -1,0 +1,35 @@
+//Johannes
+
+class Attractor {
+  float mass;
+  PVector location;
+  float G;
+
+
+  Attractor(float x, float y, float mass_) {
+    location = new PVector (x, y);
+    mass = mass_;
+    G = 0.4;
+  }
+
+  PVector attract(Mover m) {
+
+
+    PVector force = PVector.sub(location, m.location); //whats the force direction?
+    float distance = force.mag();
+    distance = constrain(distance, 5, 25); //constraint distance
+    force.normalize();
+    float strength = (G*mass*m.mass) / (distance * distance);
+    force.mult(strength); // whats the force magnitude?
+    return force; // return force so it can be ap`plied!
+  }
+
+  void mouseInside() {
+    if (mousePressed) {
+      if (dist(location.x, location.y, mouseX, mouseY) < mass) {
+        location.x = mouseX;
+        location.y = mouseY;
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+﻿//Johannes (and lesser extent Mathias) 
+
+using UnityEngine;
+using System.Collections;
+
+public class RayChild : MonoBehaviour{
+	public GameObject obj;
+	// Use this for initialization
+	void Start () {
+	
+	}
+	
+	// Update is called once per frame
+	void Update () {
+		Vector3 fwd = transform.TransformDirection (Vector3.forward);
+
+		Ray ray = new Ray (Camera.main.transform.position, Camera.main.transform.transform.forward);
+
+		Debug.DrawRay (ray.origin, ray.direction * 100, Color.red);
+
+		if (Physics.Raycast (ray)) {
+			obj = GameObject.Find ("Cube");
+			obj.GetComponent<Renderer> ().material.color = Color.red;
+			obj.transform.Rotate (0, 100 * Time.deltaTime, 0);
+			//Debug.Log("There is something in front of the object!");
+		}
+	}
+}

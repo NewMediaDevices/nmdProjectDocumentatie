@@ -1,0 +1,252 @@
+//Florian
+
+import codeanticode.syphon.*;
+import netP5.*;
+import oscP5.*;
+OscP5 oscP5;
+import com.leapmotion.leap.*;
+
+NetAddress myRemoteLocation;
+Controller controller = new Controller();
+PGraphics canvas;
+SyphonServer server;
+
+PFont courier;
+PFont hacked;
+PImage glitch;
+
+int H = (int) random(0, 255);
+int S = (int) random(40, 255);
+int B = (int) random(80, 230);
+int H2 = 0;
+int S2 = 0;
+int B2 = 0;
+
+int xyzTrigger = 1;
+float oldX, oldY, oldZ;
+
+int bleed = 26;
+int winCount = 0;
+
+int buttonWidth = 120;
+int buttonHeight = 30;
+int buttonShift = 50;
+
+int messageNumber = 0;
+int dubbleTextMargin = 30;
+boolean collectTips = false;
+
+void settings() {
+  size(800, 400, P3D);
+  PJOGL.profile = 1;
+}
+
+void setup() {
+  canvas = createGraphics(800, 400, P3D);
+  server = new SyphonServer(this, "Processing Syphon");
+  oscP5 = new OscP5(this, 3334);
+  myRemoteLocation = new NetAddress("127.0.0.1", 3333);
+
+  courier = loadFont("Courier-20.vlw");
+  hacked = loadFont("HACKED-20.vlw");
+  glitch = loadImage("glitch.png");
+}
+
+void draw() {
+  canvas.beginDraw();
+  canvas.background(0);
+  canvas.textFont(courier);
+  canvas.textAlign(CENTER);
+  canvas.fill(255);
+
+  /*startscreen messages... when PLAY is pressed, the actual game gets launched*/
+  switch(messageNumber) {
+  case 0: 
+    canvas.text("With this game, you can earn a total of 3 GOLDEN tips!", width/2, height/2-dubbleTextMargin/2);
+    canvas.rect(width/2+220, height/2, 200, 4);
+    nextButton("continue");
+    break;
+  case 1: 
+    canvas.text("Use just one hand to change the", width/2, height/2-dubbleTextMargin);
+    canvas.text("variable color until it matches the fixed one", width/2, height/2);
+    nextButton("continue");
+    break;
+  case 2: 
+    canvas.text("But note, each movement you make", width/2, height/2-dubbleTextMargin);  
+    canvas.text("distorts the other player's view...", width/2, height/2);
+    canvas.tint(255, 200);
+    canvas.image(glitch, width/2-230, height/2-15, 120, 20);
+    nextButton("continue");
+    break;
+  case 3: 
+    canvas.text("You can stop playing the game at any time", width/2, height/2-dubbleTextMargin); 
+    canvas.text("you want to collect your unlocked tips!", width/2, height/2);
+    nextButton("continue");
+    break;
+  case 4:
+    canvas.text("So, what will it be... less tips for you, or betrayal?", width/2, height/2-dubbleTextMargin/2);
+    canvas.image(glitch, width/2+200, height/2-30, 120, 20);
+    nextButton("play!");
+    break;
+  case 5:
+    if (!collectTips) {
+      if (winCount < 3) {
+        theGame();
+      } else {
+        canvas.text("Congratulations, you unlocked all of the tips!", width/2, height/2-dubbleTextMargin); 
+        canvas.text("But gave the other player lots of distortion...", width/2, height/2);
+        canvas.image(glitch, width/2+118, height/2-15, 130, 19);
+        canvas.textFont(hacked);
+        canvas.text("click below to collect your tips!", width/2, height/2+dubbleTextMargin*2);
+      }
+      collectButton();
+    } else {
+      collectTheTips(winCount);
+    }
+    break;
+  default:
+    println("default switchCase");
+    break;
+  }
+
+  canvas.endDraw();
+  image(canvas, 0, 0);
+  server.sendImage(canvas);
+}
+
+/*draw the message buttons*/
+void nextButton(String content) {
+  canvas.rectMode(CENTER);
+  canvas.fill(255);
+  canvas.rect(width/2, height/2 + buttonShift, buttonWidth, buttonHeight);
+  canvas.textFont(hacked);
+  canvas.textAlign(CENTER, CENTER);
+  canvas.fill(0);
+  canvas.text(content, width/2, height/2 + buttonShift);
+}
+
+void collectButton() {
+  canvas.rectMode(CENTER);
+  canvas.fill(255);
+  canvas.rect(width/2, height - buttonShift, buttonWidth, buttonHeight);
+  canvas.textFont(hacked);
+  canvas.textAlign(CENTER, CENTER);
+  canvas.fill(0);
+  canvas.text("collect " + winCount +" tips", width/2, height - buttonShift);
+}
+
+/*display messages acording to how many tips are unlocked*/
+void collectTheTips(int number) {
+  switch(number) {
+  case 0: 
+    canvas.text("You've earned no tips, but you're a good ally!", width/2, height/2-dubbleTextMargin/2);
+    nextButton("end game");
+    break;
+  case 1:
+    canvas.text("Congratulations! You unlocked 1 tip,", width/2, height/2-dubbleTextMargin);  
+    canvas.text("continue to collect it...", width/2, height/2);
+    nextButton("continue");
+    break;
+  case 2:
+    canvas.text("Congratulations! You unlocked 2 tips,", width/2, height/2-dubbleTextMargin);  
+    canvas.text("continue to collect them...", width/2, height/2);
+    nextButton("continue");
+    break;
+  case 3:
+    exit();
+    break;
+  default:
+    println("default switchCase");
+    break;
+  }
+}
+
+/*THE ACTUAL GAME*/
+void theGame() {
+  Frame frame = controller.frame();
+  Hand hand = frame.hands().rightmost();
+
+  float x = hand.direction().yaw();
+  float y = hand.grabStrength();
+  float z = hand.palmNormal().roll();
+  
+//Leap motion's xyz get mapped to hsb values
+  H2 = (int) map(floor(x*100), 60, -60, 10, 240);
+  S2 = (int) map(floor(y*100), 0, 100, 0, 255);
+  B2 = (int) map(floor(z*100), -80, 80, 0, 255);
+
+//Only send osc messages when leap notices change  
+  if (oldX != x || oldY != y || oldZ != z) {
+    OscMessage myMessage = new OscMessage("/leapHSB/xyz");
+    myMessage.add(":" + x + ":" + y + ":" + z + ":");
+    oscP5.send(myMessage, myRemoteLocation);
+    println("bloob" + x + y + z);
+  }
+
+  canvas.rectMode(NORMAL);
+  canvas.noStroke();
+  canvas.colorMode(HSB);
+  canvas.fill(H, S, B);
+  canvas.rect(0, 0, width/2, height);
+  canvas.rectMode(CENTER);
+  canvas.fill(H2, S2, B2);
+
+//calculate the differences between the two colors, trigger a win when they get close
+  int Hdiff = H-H2;
+  int Sdiff = S-S2;
+  int Bdiff = B-B2;
+
+  int sum = abs(Hdiff) + abs(Sdiff) + abs(Bdiff);
+  int size = (int) map(sum, (255*3 + 100), bleed*1.720, 20, width/2);
+  canvas.rect(width-(width/4), height/2, size, size);
+
+  oldX = x;
+  oldY = y;
+  oldZ = z;
+
+  if (abs(H - H2) < bleed && abs(S - S2) < bleed && abs(B - B2) < bleed) {
+    winner();
+  }
+}
+
+/*make the message buttons work*/
+void mouseReleased() {
+  if (mouseX > width/2 - buttonWidth/2 && mouseX < width/2 + buttonWidth/2 && mouseY > height/2 + buttonShift - buttonHeight/2 && mouseY < height/2 + buttonShift + buttonHeight/2) {
+    if (messageNumber < 5) {
+      messageNumber++;
+    } else if (messageNumber == 5) {
+      OscMessage myMessage1 = new OscMessage("/leapHSB/numOfWins");
+      OscMessage myMessage2 = new OscMessage("/gameState");
+      myMessage1.add(winCount);
+      myMessage2.add(3);
+      oscP5.send(myMessage1, myRemoteLocation);
+      oscP5.send(myMessage2, myRemoteLocation);
+      exit();
+    }
+  }
+  if (messageNumber == 5 && mouseX > width/2 - buttonWidth/2 && mouseX < width/2 + buttonWidth/2 && mouseY > height - buttonShift - buttonHeight/2 && mouseY < height - buttonShift + buttonHeight/2) {
+    collectTips = true;
+  }
+}
+
+/*simulate the end of the game for overall visuals*/
+void keyReleased() {
+  if (key == 't') {
+    OscMessage myMessage = new OscMessage("/gameState");
+    myMessage.add(3);
+    oscP5.send(myMessage, myRemoteLocation);
+  }
+}
+
+/*win-situation: a new color is given*/
+void winner() {
+  H = (int) random(0, 255);
+  S = (int) random(40, 255);
+  B = (int) random(80, 230);
+
+  winCount++;
+
+  OscMessage myMessage = new OscMessage("/leapHSB/numWin");
+  myMessage.add("number of wins is..." + winCount);
+  oscP5.send(myMessage, myRemoteLocation);
+}

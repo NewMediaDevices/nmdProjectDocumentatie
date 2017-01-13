@@ -1,0 +1,57 @@
+class Mover {
+
+  PVector location;
+  PVector velocity;
+  float size;
+  float colourH;
+  float colourS;
+  float colourB;
+  float maxSpeed = 1;
+
+  PVector acceleration;
+  float mass;
+
+  Mover(float m, float x, float y) {
+    location = new PVector(x, y);
+    velocity = new PVector(random(-1, 1), random(-1, 1));
+    size = random(2, 5);
+    colourH = random(30, 150);
+    colourS = random(50, 240);
+    colourB = random(50, 240);
+
+    mass = m;
+    acceleration = new PVector(0, 0);
+  }
+
+  void applyForce(PVector force) {
+    PVector f = PVector.div(force, mass);
+    acceleration.add(f);
+  }
+
+  void update() {
+    location.add(velocity); 
+    velocity.add(acceleration);
+    velocity.limit(maxSpeed);
+    acceleration.mult(0);
+  }
+
+  void display(PGraphics plane) {
+    plane.noStroke();
+    plane.fill(colourH, colourS, colourB);
+    plane.ellipse(location.x, location.y, size, size);
+  }
+
+  void checkEdges() {
+    if (location.x > width + size) {
+      location.x = 0;
+    } else if (location.x < 0 - size) {
+      location.x = width;
+    }
+
+    if (location.y > height + size) {
+      location.y = 0;
+    } else if (location.y < 0 - size) {
+      location.y = height;
+    }
+  }
+}

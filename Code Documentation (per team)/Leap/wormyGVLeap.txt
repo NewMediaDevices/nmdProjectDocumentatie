@@ -1,0 +1,84 @@
+//Rie
+
+/**
+ * oscP5sendreceive by andreas schlegel
+ * example shows how to send and receive osc messages.
+ * oscP5 website at http://www.sojamo.de/oscP5
+ */
+ 
+ 
+import oscP5.*; //ths is used to let the data of position of hand been sent to osc version Processing 5 
+import netP5.*;
+import de.voidplus.leapmotion.*; //library for letting processing to communicate with leapmotion (see example on processing LM_1Basic) 
+LeapMotion leapy;
+OscP5 oscP5;
+NetAddress myRemoteLocation;
+
+ PVector [] pt= new PVector[40]; //creating pt0 til pt39-values: 39 values which the mouse went through will be shown as a long line then when the movementment stops lines slowly dissapears one by one
+ //other remarks: if somebody wants to add 5 fingers-effect instead of 1 finger for leap than people can simple add PVector[][] pt=new PVector[5][40] while changing all the array with double array instead of one
+ PVector now = new PVector(0,0); //to describe a two or three dimensional vector and it's convenient way to store values
+ PVector previous = new PVector(0,0); 
+ float oldX, oldY; 
+
+void setup(){
+  size(800, 600, P3D); //specify P3D rendere (Processing 3D)
+  frameRate(60); //25frp aka speed 
+  /* start oscP5, listening for incoming messages at port 12000 */
+  oscP5 = new OscP5(this,3334);
+  for(int i = 0; i < 40; i++) pt[i] = new PVector (0, 0, 0); //creating pt0 until p39 in array aka pt39 = new PVector(0, 0, 0);
+  leapy = new LeapMotion(this);
+  myRemoteLocation = new NetAddress("127.0.0.1",3333);
+
+}
+
+void draw(){
+  background(0);
+  stroke(255, 100, 100); //the length of the line which can be drawn during hand movement
+  for(int i = 39; i > 0; i--) { 
+    pt[i].x = pt[i-1].x; pt[i].y = pt[i-1].y; //instead of giving unique points to every lines with PVector, I have used array to make it a lot compact (try to avoid reapting same codes)
+    //this can be pt1.y=pt0.y
+  }
+  
+  /*detect hand/finger gesture through Leap Motion sensor & show the results on processing*/
+  for(Hand hands : leapy.getHands() ){ //this can be compared to for example pt[0].x = mouseX; for mouse position & it's detects hands positions
+    for(Finger fingers : hands.getFingers() ){  //same us line 40 but it's possible to detect fingers movements as well 
+       now = fingers.getPosition(); //current positions
+      if(fingers.getType() == 1){ //it's if-statement because we only wants 1 finger to be detected and if 5 than we can exchange it to int xfinger and first array[] has to be xfnger instead
+      pt[0].x = now.x; //mouseX = x-waarde van de leap
+      pt[0].y = now.y; //mouseY = y-waarde van de leap
+      
+      }
+    }
+  }
+  
+  for(int i = 0; i < 39; i++){
+    line(pt[i].x, pt[i].y, pt[i+1].x, pt[i+1].y); //to draw a line with positions comparison to mouse position line(mouseX, mouseY, mouseX2; mouseY2);
+    //put in array to avoid a lot of lines = this line can be line(pt2.x,pt2.y, pt3.x, pt3.y);
+  }
+  
+  
+  
+  if(oldX != now.x || oldY != now.y){ //this helps to send every new coordinate/positions of the hand/finger one at the time instead of sending endless positions which cause a big problem 
+  
+  /* in the following different ways of creating osc messages are shown by example */
+  OscMessage myMessage = new OscMessage("/WormLeapData");
+  
+  myMessage.add(123); /* add an int to the osc message */
+
+  /* send the message */
+  oscP5.send(myMessage, myRemoteLocation);  
+  
+  println("wormdataleap " + now.x + " " + now.y); //print the position of worm
+  }
+  /*the value of new position of x and y will become old position of X and Y so when next movements are detected it will compare and seee if they should print out the infor to osc/processing*/
+  oldX= now.x; 
+  oldY= now.y;
+  }
+
+/* incoming osc message are forwarded to the oscEvent method. */
+void oscEvent(OscMessage theOscMessage) {
+  /* print the address pattern and the typetag of the received OscMessage */
+  print("### received an osc message.");
+  print(" addrpattern: "+theOscMessage.addrPattern());
+  println(" typetag: "+theOscMessage.typetag());
+}

@@ -1,0 +1,195 @@
+//Originele code van bewegende particles door: Johannes Schreurs
+//Aanvulling van deze code voor Leap game: Margo Cousin
+//3Ba Multec - Art & Technology
+//New Media Devices
+
+import codeanticode.syphon.*;                                  //Syphon library                                
+SyphonServer server;
+
+import netP5.*;                                                //oscP5 library
+import oscP5.*;
+OscP5 oscP5;
+NetAddress myRemoteLocation;
+
+import de.voidplus.leapmotion.*;                                //Leap Motion for Processing library
+LeapMotion leap;
+
+ArrayList<Particle> particles = new ArrayList<Particle>();      //create new ArrayList for all the moving particles
+int amount = 1350;                                              //integer for the amount of particles
+int counter;                                                    //counts how many particles aren't visible anymore
+int margin = 10;                                                //the amount of particles that are allowed to be left when you win the game
+int lineDistance = 20;                                          //if the distance between two particles is less than this integer, a line should be drawn between the two 
+boolean endGame = false;
+
+void setup() {
+  size(800,800,P3D);
+  smooth();
+  background(0,0,0);
+  colorMode(HSB);  
+  
+  oscP5 = new OscP5(this, 3334);
+  myRemoteLocation = new NetAddress("127.0.0.1", 3333);
+  leap = new LeapMotion(this);
+  server = new SyphonServer(this, "Processing Syphon");         //create syhpon server to send frames out.
+   
+  for (int i = 0; i < amount; i++) {                            //add the set amount of particles to the ArrayList
+    particles.add(new Particle());
+  }
+}
+
+void draw() {                                                   //background needs to be redrawn every time or else                     
+  background(0,0,0);                                            //you see moving lines instead of moving particles
+  
+/************************* UPDATE THE PARTICLES *************************/
+  
+  if (counter < amount) {
+    for (Particle part : particles) {
+      if (part.draw == true) {                                  //update and display the particles as long as they haven't permanently left the field yet
+        part.update();  
+        part.display();
+      }
+ 
+      if (part.touch == false && counter < amount-margin) {     //as long as the particle hasn't touched one of the hands (and the game hasn't ended yet) it needs to keep on reappearing
+        part.checkEdges();
+      } else if (part.draw == true) {                           //check if the particle has left the screen yet after it touched the hands
+        part.checkOuterSpace();
+      }
+    }
+   
+/************************* DRAW LINES BETWEEN PARTICLES THAT COME CLOSE TO EACH OTHER *************************/
+
+    for (Particle part1 : particles) {                                      
+      PVector pLoc1 = part1.location;                           //add the location of every particle to a PVector
+    
+      if (part1.draw == true){                                  //check if the particle hasn't touched the hands yet or if it has touched the hands but hasn't left the screen yet
+        for (Particle part2 : particles) {                                  
+          PVector pLoc2 = part2.location;                       //add the location of every other particle to a PVector
+          float particleDistance = pLoc1.dist(pLoc2);           //compare the distance between the two vectors
+          if (particleDistance < lineDistance) {                //if the distance is less than 20 pixels
+            stroke(part1.colourH, part1.colourS, part1.colourB);                
+            strokeWeight(0.4);
+            line(pLoc1.x, pLoc1.y, pLoc2.x, pLoc2.y);           //add a line going from one particle to the other
+          }
+        }
+      }
+    }  
+  
+/************************* HANDS TOUCH PARTICLES *************************/  
+
+    for (Hand hand : leap.getHands()){                                                    //check each hand
+      PVector handPos = new PVector (hand.getPosition().x, hand.getPosition().y);         //add position of the hands (-z coordinate) to a PVector
+    
+      for (Finger finger : hand.getFingers()) {
+        PVector fingerPos = new PVector(finger.getPosition().x, finger.getPosition().y);  //add position of each finger (-z coordinate) to a PVector
+      
+        for (float i = 0.0; i <= 1.0; i+= 0.01) {                                         //find 100 points that form the line between the hand and the top of the finger
+          float fingerLerpX = lerp(fingerPos.x, handPos.x, i);                            //linear interpolation to find all the x-coordinates of the points
+          float fingerLerpY = lerp(fingerPos.y, handPos.y, i);                            //linear interpolation to find all the y-coordinates of the points
+          PVector fullFingerPos = new PVector(fingerLerpX, fingerLerpY);                  //add the x- and y-coordinates to a PVector
+          
+          if (counter < amount-margin) {                                                  //if the game hasn't ended yet
+            fill(#29ac6d);
+            stroke(#29ac6d);
+            strokeWeight(1);
+            line(handPos.x, handPos.y, fingerPos.x, fingerPos.y);                         //draw a line from the hand to the top of the finger (aka the line on which the 100 points lie)
+            noStroke();
+            ellipse(handPos.x, handPos.y, 5, 5);
+            ellipse(fingerPos.x, fingerPos.y, 3.75, 3.75);
+          }
+          
+          for (Particle p : particles) {                                                  //check the location of every particle
+            PVector pLoc = p.location; 
+            float handDistance = pLoc.dist(handPos);                                      //check if they touch the position of the hands
+            float fingerDistance = pLoc.dist(fingerPos);                                  //check if they touch the position of the fingers
+            float fullFingerDistance = pLoc.dist(fullFingerPos);                          //check if they touch the line that goes from the hand to the top of the fingers
+          
+            if (fullFingerDistance < 2 || fingerDistance < 3.75 || handDistance < 5 && counter < amount-margin) {                                       
+                  p.cantTouchThis();
+            }
+          }
+        } 
+      }
+    }
+  }
+    
+/************************* UPDATE GAMESTATE WHEN GAME HAS ENDED *************************/
+
+  if (counter >= amount-margin){
+    if (endGame == false) {  
+      endGame = true;
+      OscMessage myMessage = new OscMessage("/gameState");                                //update gameState
+      myMessage.add(7);
+      oscP5.send(myMessage, myRemoteLocation);
+    }
+  }
+}
+
+/************************* PARTICLE CLASS *************************/
+
+class Particle {
+
+  PVector location;
+  PVector velocity;
+  float size;
+  float radius;
+  float colourH;
+  float colourS;
+  float colourB;
+  boolean touch;
+  boolean draw;
+
+  Particle() {
+    location = new PVector(random(width), random(height));      
+    velocity = new PVector(random(-1, 1), random(-1, 1));
+    size = random(2, 5);
+    radius = size/2;
+    colourH = random(30, 150);                                  //hue between dark yellow and medium blue
+    colourS = random(50, 240);
+    colourB = random(50, 240);
+    touch = false;                                              //to check if it touched the hands yet
+    draw = true;                                                //to check if it still needs to be drawn
+  }
+
+  void update() {
+    location.add(velocity);                                     //add velocity to location to make the particle move
+  }
+
+  void display() {                                              //draw particle
+    noStroke();
+    fill(colourH, colourS, colourB);
+    ellipse(location.x, location.y, size, size);
+  }
+
+  void checkEdges() {                                           //if the particles move out of the screen, they reappear at the other side  
+    if (location.x > width + radius) {                          //if it disappears on the right side 
+      location.x = 0 - radius;                                  //it reappears on the left side
+    } else if (location.x < 0 - radius) {
+      location.x = width + radius;
+    }
+
+    if (location.y > height + radius) {
+      location.y = 0 - radius;
+    } else if (location.y < 0 - radius) {
+      location.y = height + radius;
+    } 
+  }
+  
+  void cantTouchThis() {
+    if (touch == false) {                                       //check if it's the first time it touches the hands
+          velocity.x *= -5;                                         
+          velocity.y *= -5;
+    }
+    touch = true;                                               //change to true so it doesn't keep on changing direction every time it touches the hands again
+  }
+  
+  void checkOuterSpace() {
+    if(location.x > width + lineDistance ||                     //check if the particle has left the screen (on any side)
+       location.x < 0 - lineDistance ||                         //(make sure it's far enough away that lines aren't drawn to it anymore)
+       location.y > height + lineDistance || 
+       location.y < 0 - lineDistance) {
+        draw = false;                                           //change to false so it doesn't have to be drawn anymore
+        counter++;                                              //keep count of how many particles have left the screen
+        println(counter);
+    }
+  }
+}

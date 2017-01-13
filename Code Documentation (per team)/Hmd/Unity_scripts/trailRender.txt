@@ -1,0 +1,72 @@
+﻿//Sander
+
+using UnityEngine;
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Text;
+using UnityOSC;
+
+public class trailRender : MonoBehaviour {
+
+	private Dictionary<string, ServerLog> servers;
+	private Dictionary<string, ClientLog> clients;
+	private Vector3 tempX;
+	private Vector3 tempY;
+	private Vector3 oldX;
+	private Vector3 oldY;
+	// Use this for initialization
+	void Start () {
+		OSCHandler.Instance.Init(); //init OSC
+		servers = new Dictionary<string, ServerLog>();
+		clients = new Dictionary<string,ClientLog> ();
+	}
+	
+	// Update is called once per frame
+	void Update () {
+		OSCHandler.Instance.UpdateLogs();
+		foreach (KeyValuePair<string, ServerLog> item in servers) {
+			// If we have received at least one packet,
+			// show the last received from the log in the Debug console
+			if (item.Value.log.Count > 0) {
+				int lastPacketIndex = item.Value.packets.Count - 1;
+				String address = item.Value.packets [lastPacketIndex].Address;
+				String data = item.Value.packets [lastPacketIndex].Data.ToString();
+				Debug.Log (data);
+				if (address == "/WormLeapData") {
+					string[] substrings = data.Split(':');
+					String sx = substrings[1];
+					String sy = substrings[2];
+
+					float x = float.Parse(sx);
+					float y = float.Parse(sy);
+
+					tempX = new Vector3(0, x, 0);
+
+					float yNr = (y) / 30;
+					if( yNr < 0){
+						yNr = 0;
+					}
+					else if(yNr > 14){
+						yNr = 14;
+					}
+					tempY = new Vector3 (0, yNr, 4.42f);
+
+					Vector3 actualX = Vector3.Lerp(oldX, tempX, 1);
+					Vector3 actualY = Vector3.Lerp(oldY, tempY, 1);
+
+					GameObject.Find("TrailHolder").transform.eulerAngles= actualX;
+					GameObject.Find("TrailHolder").transform.position = -actualY;
+
+					oldX = tempX;
+					oldY = tempY;
+				}	
+				/*UnityEngine.Debug.Log (String.Format ("SERVER: {0} ADDRESS: {1} VALUE : {2}", 
+					                                    item.Key, // Server name
+					                                    item.Value.packets [lastPacketIndex].Address, // OSC address
+					                                    item.Value.packets [lastPacketIndex].Data [0].ToString ())); //First data value
+*/
+			}
+		}
+	}
+}

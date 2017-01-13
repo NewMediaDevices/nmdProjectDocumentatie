@@ -1,0 +1,271 @@
+//Florian
+
+//GUIDE: use a,z,e and r keys to simulate triggers in overall game changes
+import codeanticode.syphon.*;
+import netP5.*;
+import oscP5.*;
+
+OscP5 oscP5;
+NetAddress myRemoteLocation;
+PGraphics canvas;
+SyphonServer server;
+
+Attractor [] attractors = new Attractor[1];
+Mover [] movers = new Mover[1000];
+
+PImage Key;
+int lineCount = 0;
+int lineMax = 2000;
+float maxSpeed = 1;
+
+int percDone = 100;
+int mapFactor = 320;
+float endAlpha = 0;
+float transp = 0;
+
+boolean[] allInputs = new boolean[4];
+boolean StartOut = false;
+boolean HSBOut = false;
+boolean ColorWordOut = false;
+boolean KeyOut =false;
+
+void settings() {
+  size(600, 600, P3D);
+  PJOGL.profile = 1;
+}
+
+void setup() {
+  canvas = createGraphics(600, 600, P3D);
+  server = new SyphonServer(this, "Processing Syphon");
+  oscP5 = new OscP5(this, 3334);
+  myRemoteLocation = new NetAddress("127.0.0.1", 3333);
+
+  pixelDensity(2);
+  Key = loadImage("key.png");
+
+  //Create movers and central attractor
+  for (int i = 0; i < movers.length; i++) {
+    movers[i] = new Mover(random(0.1, 2), random(width), random(height));
+  }
+  attractors[0] = new Attractor(width/2, height/2, 0);
+  for (int i = 0; i < allInputs.length; i++) {
+    allInputs[i] = false;
+  }
+}
+
+void draw() {
+  canvas.beginDraw();
+  canvas.noStroke();
+  canvas.background(0);
+  canvas.colorMode(HSB);
+  lineCount = 0;
+
+  for (int i = 0; i < movers.length; i++) {
+    Mover currentMover = movers[i];
+    PVector m1 = currentMover.location;
+
+    //Let the central attractor apply force on the movers 
+    for ( int j = 0; j < attractors.length; j++) {
+      int mapFactor = (int) map(percDone, 100, 0, 320, 140);
+      float massValue;
+      //keeps the circle from happening in the beginning, and explodes it at the very end!
+      if (percDone == 100 || percDone == 0) {
+        massValue = 0;
+      } else {
+        //Make the particles move in a circle-ish shape (the of game progress is taken in acount)
+        massValue = map(dist(movers[i].location.x, movers[i].location.y, width/2, height/2), percDone-(mapFactor/2), percDone+mapFactor, -(mapFactor/2), (mapFactor/2));
+      }
+
+      attractors[0].mass = massValue;
+      PVector force = attractors[j].attract(movers[i]);
+      currentMover.applyForce(force);
+    }
+
+    currentMover.update();
+    currentMover.checkEdges();
+    currentMover.display();
+
+    //Draw connecting lines between the particle dots (the number of lines are limited to a maximum)
+    for (int midx = i; midx >= 0; midx--) {
+      Mover mbis = movers[midx];
+      PVector m2 = mbis.location;
+      float d = m1. dist(m2);
+      if (d<20 && lineCount < lineMax) {
+        canvas.stroke(currentMover.colourH, currentMover.colourS, currentMover.colourB);
+        canvas.strokeWeight(0.4);
+        canvas.line(m1.x, m1.y, m2.x, m2.y);
+        lineCount++;
+      }
+    }
+  }
+
+  changePercDone();
+
+  //what should happen when the game is completed:
+  //the screen slowly turn black, and the key-image gets displayed
+  if (percDone == 0) { 
+    canvas.fill(0, 0, 0, endAlpha/2);
+    canvas.rect(0, 0, width, height);
+    endAlpha++;
+    transp += 0.5;
+    canvas.tint(255, endAlpha);
+    canvas.pushMatrix();
+    canvas.imageMode(CENTER);
+    canvas.image(Key, width/2, height/2, Key.width/1.5, Key.height/1.5);
+    canvas.popMatrix();
+
+    if (endAlpha/2 > 258) {
+      exit();
+    }
+  }
+
+  canvas.endDraw();
+  image(canvas, 0, 0);
+  server.sendImage(canvas);
+}
+
+/*The mover class (by Johannes Schreurs)*/
+class Mover {
+
+  PVector location;
+  PVector velocity;
+  float size;
+  float colourH;
+  float colourS;
+  float colourB;
+  float maxSpeed = 1;
+
+  PVector acceleration;
+  float mass;
+
+  Mover(float m, float x, float y) {
+    location = new PVector(x, y);
+    velocity = new PVector(random(-1, 1), random(-1, 1));
+    size = random(2, 5);
+    colourH = random(30, 150);
+    colourS = random(50, 240);
+    colourB = random(50, 240);
+
+    mass = m;
+    acceleration = new PVector(0, 0);
+  }
+  
+  //make the particles seem to float randomly over the screen
+  void applyForce(PVector force) {
+    PVector f = PVector.div(force, mass);
+    acceleration.add(f);
+  }
+
+  void update() {
+    location.add(velocity); 
+    velocity.add(acceleration);
+    velocity.limit(maxSpeed);
+    acceleration.mult(0);
+  }
+
+  void display() {
+    canvas.noStroke();
+    canvas.fill(colourH, colourS, colourB);
+    canvas.ellipse(location.x, location.y, size, size);
+  }
+
+  //brings the particles who leave the screen back into display
+  void checkEdges() {
+    if (location.x > width + size) {
+      location.x = 0;
+    } else if (location.x < 0 - size) {
+      location.x = width;
+    }
+
+    if (location.y > height + size) {
+      location.y = 0;
+    } else if (location.y < 0 - size) {
+      location.y = height;
+    }
+  }
+}
+
+/*The attractor class (by Johannes Schreurs)*/
+class Attractor {
+  float mass;
+  PVector location;
+  float G;
+
+  Attractor(float x, float y, float mass_) {
+    location = new PVector (x, y);
+    mass = mass_;
+    G = 0.4;
+  }
+
+  //apply atraction forces on movers
+  PVector attract(Mover m) {
+    PVector force = PVector.sub(location, m.location);
+    float distance = force.mag();
+    distance = constrain(distance, 5, 25);
+    force.normalize();
+    float strength = (G * mass * m.mass) / (distance * distance);
+    force.mult(strength);
+    return force;
+  }
+}
+
+//translates the number of unlocked games to a percentage in overall progress
+void changePercDone() {
+  if (StartOut == true) {
+    allInputs[0] = true;
+  }
+  if (HSBOut == true) {
+    allInputs[1] = true;
+  }
+  if (ColorWordOut == true) {
+    allInputs[2] = true;
+  }
+  if (KeyOut == true) {
+    allInputs[3] = true;
+  }
+  int numOfTrue = 0;
+  for (int i = 0; i < allInputs.length; i++) {
+    if (allInputs[i] == true) {
+      numOfTrue++;
+    }
+  }
+  int newPercDone = (int) map(numOfTrue, 0, allInputs.length, 100, 0);
+  percDone = newPercDone;
+}
+
+//simulate game triggers
+void keyReleased() {
+  if (key == 'a') {
+    StartOut = true;
+  }
+  if (key == 'z') {
+    HSBOut = true;
+  }
+  if (key == 'e') {
+    ColorWordOut = true;
+  }
+  if (key == 'r') {
+    KeyOut = true;
+  }
+}
+
+//listens to actual game triggers
+void oscEvent(OscMessage theOscMessage) {
+  if (theOscMessage.addrPattern().equals("/gameState")) {
+    String message = (String) theOscMessage.get(0).stringValue();
+    message = message.replace("[", "");
+    message = message.replace("]", "");
+    if (message.equals("1")) {
+      StartOut = true;
+    }
+    if (message.equals("3")) {
+      HSBOut = true;
+    }
+    if (message.equals("5")) {
+      ColorWordOut = true;
+    }
+    if (message.equals("7")) {
+      KeyOut = true;
+    }
+  }
+}
